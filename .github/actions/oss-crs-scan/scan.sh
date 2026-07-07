@@ -44,6 +44,19 @@ WORKDIR="${WORKSPACE}/.oss-crs-work"
 ARTIFACTS="${WORKSPACE}/oss-crs-artifacts/${HARNESS}"
 mkdir -p "$WORKDIR" "$ARTIFACTS"
 
+# Publish artifacts-dir immediately so the caller's upload step always has a
+# valid path, even if a later phase (prepare/build-target) aborts under `set -e`.
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  echo "artifacts-dir=$ARTIFACTS" >> "$GITHUB_OUTPUT"
+fi
+
+# Collect logs on ANY exit (including build failures) so the uploaded artifact
+# always carries something useful for triage.
+collect_logs() {
+  find "$WORKDIR" -type d -name 'logs' -exec cp -a {} "$ARTIFACTS/" \; 2>/dev/null || true
+}
+trap collect_logs EXIT
+
 # The container only sees $WORKSPACE, so the bundled compose for this CRS is
 # copied in. COMPOSE_FILE overrides the bundled default entirely.
 COMPOSE_FILE="${COMPOSE_FILE:-}"
@@ -127,17 +140,14 @@ done < <(find "$WORKDIR" \
            \( -path '*/povs/*' \
               -o -name 'crash-*' -o -name 'oom-*' -o -name 'timeout-*' -o -name 'leak-*' \) \
            -type f -print0 2>/dev/null)
-# Keep logs for triage regardless.
-find "$WORKDIR" -type d -name 'logs' -exec cp -a {} "$ARTIFACTS/" \; 2>/dev/null || true
+# (logs are gathered by the EXIT trap, so they're captured on failure too.)
 echo "crashed=$crashed"
 ls -la "$ARTIFACTS" || true
 echo "::endgroup::"
 
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
-  {
-    echo "crashed=$crashed"
-    echo "artifacts-dir=$ARTIFACTS"
-  } >> "$GITHUB_OUTPUT"
+  # artifacts-dir was already published near the top.
+  echo "crashed=$crashed" >> "$GITHUB_OUTPUT"
 fi
 
 if [[ "$crashed" == "true" ]]; then

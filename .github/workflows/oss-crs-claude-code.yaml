@@ -71,7 +71,7 @@ jobs:
           claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
       - name: Upload findings
-        if: always()
+        if: always() && steps.scan.outputs.artifacts-dir != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: oss-crs-claude-code-${{ github.event.inputs.harness }}
