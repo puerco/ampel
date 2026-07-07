@@ -1,0 +1,65 @@
+# SPDX-FileCopyrightText: Copyright 2026 Carabiner Systems, Inc
+# SPDX-License-Identifier: Apache-2.0
+#
+# OSS CRS periodic scan: a longer fuzz pass over each harness on the default
+# branch. Reports PoVs as artifacts but does not fail the run (fail-on-crash is
+# off) so the schedule keeps producing findings. Scheduled workflows run from the
+# default branch only.
+name: oss-crs-periodic
+
+on:
+  schedule:
+    # Mondays 04:17 UTC (off the hour to avoid contention).
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      timeout:
+        description: "Fuzzing budget per harness, in seconds"
+        required: false
+        default: "1800"
+      harness:
+        description: "Single harness to fuzz (blank = all). Handy for a cheap test run."
+        required: false
+        default: ""
+
+permissions: {}
+
+jobs:
+  fuzz:
+    name: "Fuzz ${{ matrix.harness }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: read # pull the oss-crs-runner image from GHCR
+    strategy:
+      fail-fast: false
+      matrix:
+        # A workflow_dispatch `harness` input narrows the run to one harness;
+        # otherwise (and on schedule) fuzz all of them.
+        harness: ${{ fromJSON(github.event.inputs.harness && format('["{0}"]', github.event.inputs.harness) || '["parse_provider_json","parse_provider_yaml","parse_identity","parse_class"]') }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - id: scan
+        uses: ./.github/actions/oss-crs-scan
+        with:
+          harness: ${{ matrix.harness }}
+          proj-path: .oss-fuzz
+          timeout: ${{ github.event.inputs.timeout || '1800' }}
+          fail-on-crash: "false"
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: oss-crs-${{ matrix.harness }}
+          path: ${{ steps.scan.outputs.artifacts-dir }}
+          if-no-files-found: ignore
