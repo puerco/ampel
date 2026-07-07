@@ -4,3 +4,7 @@ conformance
 tmp
 _test
 
+# OSS CRS runtime output (see .github/actions/oss-crs-scan)
+.oss-crs-work
+oss-crs-artifacts
+

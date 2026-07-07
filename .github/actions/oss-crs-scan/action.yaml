@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: Copyright 2026 Carabiner Systems, Inc
+# SPDX-License-Identifier: Apache-2.0
+#
+# Reusable composite action that runs one OSS CRS harness against an OSS-Fuzz-
+# format project using a prebuilt runner image. Pure fuzzer (crs-libfuzzer): no
+# secrets required.
+#
+# ARCHITECTURE NOTE: this action + its runner image (runner.Dockerfile) + the
+# image-publish workflow are a self-contained, project-agnostic bundle. It lives
+# inline in ampel for now but is meant to be lifted verbatim into a standalone
+# repo (e.g. carabiner-dev/oss-crs-action) and consumed as
+# `uses: <owner>/oss-crs-action@<sha>`. Nothing here is ampel-specific — the
+# caller supplies the ampel bits (harness, proj-path). On extraction, change the
+# default `image` below to the action repo's published image.
+name: "OSS CRS scan"
+description: "Build and fuzz one harness of an OSS-Fuzz-format project with OSS CRS (crs-libfuzzer)."
+
+inputs:
+  harness:
+    description: "Harness name to fuzz (e.g. parse_class; see the project's build.sh)."
+    required: true
+  proj-path:
+    description: "OSS-Fuzz project path passed as --fuzz-proj-path."
+    required: false
+    default: ".oss-fuzz"
+  image:
+    description: "OSS CRS runner image. Defaults to ghcr.io/<owner>/oss-crs-runner:latest."
+    required: false
+    default: ""
+  compose-file:
+    description: "CRS compose file. Empty = use the compose bundled with this action."
+    required: false
+    default: ""
+  timeout:
+    description: "Fuzzing budget in seconds for the run phase."
+    required: false
+    default: "300"
+  fail-on-crash:
+    description: "Exit non-zero when a PoV/crash is found (true for presubmit)."
+    required: false
+    default: "true"
+
+outputs:
+  crashed:
+    description: "'true' if at least one PoV/crash was found."
+    value: ${{ steps.scan.outputs.crashed }}
+  artifacts-dir:
+    description: "Directory holding collected PoVs and logs."
+    value: ${{ steps.scan.outputs.artifacts-dir }}
+
+runs:
+  using: "composite"
+  steps:
+    # The scan logic lives in scan.sh so the local runner (local-run.sh) exercises
+    # the exact same code path — "local == CI" by construction.
+    - id: scan
+      shell: bash
+      env:
+        HARNESS: ${{ inputs.harness }}
+        PROJ_PATH: ${{ inputs.proj-path }}
+        IMAGE: ${{ inputs.image }}
+        OWNER: ${{ github.repository_owner }}
+        COMPOSE_FILE: ${{ inputs.compose-file }}
+        TIMEOUT: ${{ inputs.timeout }}
+        FAIL_ON_CRASH: ${{ inputs.fail-on-crash }}
+        WORKSPACE: ${{ github.workspace }}
+      run: bash "${GITHUB_ACTION_PATH}/scan.sh"
