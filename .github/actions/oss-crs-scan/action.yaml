@@ -13,16 +13,20 @@
 # caller supplies the ampel bits (harness, proj-path). On extraction, change the
 # default `image` below to the action repo's published image.
 name: "OSS CRS scan"
-description: "Build and fuzz one harness of an OSS-Fuzz-format project with OSS CRS (crs-libfuzzer)."
+description: "Build and fuzz one harness of an OSS-Fuzz-format project with an OSS CRS engine."
 
 inputs:
   harness:
     description: "Harness name to fuzz (e.g. parse_class; see the project's build.sh)."
     required: true
+  crs:
+    description: "CRS engine; selects the bundled compose (crs-libfuzzer | crs-bug-finding-claude-code)."
+    required: false
+    default: "crs-libfuzzer"
   proj-path:
     description: "OSS-Fuzz project path passed as --fuzz-proj-path."
     required: false
-    default: ".oss-fuzz"
+    default: "oss-fuzz"
   image:
     description: "OSS CRS runner image. Defaults to ghcr.io/<owner>/oss-crs-runner:latest."
     required: false
@@ -39,6 +43,14 @@ inputs:
     description: "Exit non-zero when a PoV/crash is found (true for presubmit)."
     required: false
     default: "true"
+  claude-code-oauth-token:
+    description: "Claude Code OAuth token for LLM CRSs (from `claude setup-token`). Leave empty for fuzzers."
+    required: false
+    default: ""
+  anthropic-api-key:
+    description: "Anthropic API key for LLM CRSs using the LiteLLM proxy. Leave empty for fuzzers/OAuth."
+    required: false
+    default: ""
 
 outputs:
   crashed:
@@ -57,6 +69,7 @@ runs:
       shell: bash
       env:
         HARNESS: ${{ inputs.harness }}
+        CRS: ${{ inputs.crs }}
         PROJ_PATH: ${{ inputs.proj-path }}
         IMAGE: ${{ inputs.image }}
         OWNER: ${{ github.repository_owner }}
@@ -64,4 +77,6 @@ runs:
         TIMEOUT: ${{ inputs.timeout }}
         FAIL_ON_CRASH: ${{ inputs.fail-on-crash }}
         WORKSPACE: ${{ github.workspace }}
+        CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude-code-oauth-token }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
       run: bash "${GITHUB_ACTION_PATH}/scan.sh"

@@ -4,7 +4,7 @@
 #
 # Run locally exactly what the CI action does: build the oss-crs-runner image,
 # then drive scan.sh (the same core the composite action calls) against this
-# repo's .oss-fuzz project. Requires Docker; use a Linux/amd64 host for a
+# repo's oss-fuzz project. Requires Docker; use a Linux/amd64 host for a
 # faithful mirror of CI (the OSS-Fuzz base image is amd64).
 #
 # Usage:
@@ -14,7 +14,10 @@
 # Env overrides:
 #   IMAGE=<ref>     use an existing image instead of building oss-crs-runner:local
 #   NO_BUILD=1      skip the image build (implies a prebuilt IMAGE)
-#   PROJ_PATH=...   OSS-Fuzz project dir (default: .oss-fuzz)
+#   PROJ_PATH=...   OSS-Fuzz project dir (default: oss-fuzz)
+#   CRS=<name>      CRS engine (default: crs-libfuzzer). For the LLM CRS use
+#                   CRS=crs-bug-finding-claude-code and export CLAUDE_CODE_OAUTH_TOKEN
+#                   (scan.sh forwards it automatically).
 set -euo pipefail
 
 SCAN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,12 +41,13 @@ if [[ "${NO_BUILD:-0}" != "1" && "$IMAGE" == "oss-crs-runner:local" ]]; then
   docker build -f "${SCAN_DIR}/runner.Dockerfile" -t "$IMAGE" "$SCAN_DIR"
 fi
 
-echo "==> Scanning harness '${HARNESS}' for ${TIMEOUT}s (fail-on-crash disabled)"
+echo "==> Scanning harness '${HARNESS}' (CRS=${CRS:-crs-libfuzzer}) for ${TIMEOUT}s (fail-on-crash disabled)"
 HARNESS="$HARNESS" \
+CRS="${CRS:-crs-libfuzzer}" \
 TIMEOUT="$TIMEOUT" \
 IMAGE="$IMAGE" \
 WORKSPACE="$REPO_ROOT" \
-PROJ_PATH="${PROJ_PATH:-.oss-fuzz}" \
+PROJ_PATH="${PROJ_PATH:-oss-fuzz}" \
 FAIL_ON_CRASH="false" \
   bash "${SCAN_DIR}/scan.sh"
 

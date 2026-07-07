@@ -52,7 +52,7 @@ jobs:
         uses: ./.github/actions/oss-crs-scan
         with:
           harness: ${{ matrix.harness }}
-          proj-path: .oss-fuzz
+          proj-path: oss-fuzz
           timeout: ${{ github.event.inputs.timeout || '1800' }}
           fail-on-crash: "false"
 

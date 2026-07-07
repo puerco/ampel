@@ -17,7 +17,7 @@ on:
       - "**/*.go"
       - "go.mod"
       - "go.sum"
-      - ".oss-fuzz/**"
+      - "oss-fuzz/**"
       - "test/fuzz/**"
       - ".github/actions/oss-crs-scan/**"
       - ".github/workflows/oss-crs-presubmit.yaml"
@@ -61,7 +61,7 @@ jobs:
         uses: ./.github/actions/oss-crs-scan
         with:
           harness: ${{ matrix.harness }}
-          proj-path: .oss-fuzz
+          proj-path: oss-fuzz
           timeout: "120"
           fail-on-crash: "true"
 

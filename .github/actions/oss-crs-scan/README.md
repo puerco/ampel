@@ -18,7 +18,8 @@ repo** (e.g. `carabiner-dev/oss-crs-action`) and consumed elsewhere as
 | `local-run.sh` | Run the exact CI flow on your machine (see **Test it locally**). |
 | `runner.Dockerfile` | The oss-crs runner image (oss-crs CLI + Docker client/compose/buildx). Nothing project-specific. |
 | `entrypoint.sh` | Wrapper so `oss-crs …` works from the mounted workspace. |
-| `crs-libfuzzer.compose.yaml` | Compose config sized for a 4 vCPU / 16 GB runner; used by default. |
+| `crs-libfuzzer.compose.yaml` | Compose for the pure fuzzer (default); sized for a 4 vCPU / 16 GB runner. |
+| `crs-bug-finding-claude-code.compose.yaml` | Compose for the Claude Code bug-finding CRS (OAuth); LLM-driven, secret-gated. |
 
 It lives inline in ampel today. To extract: move this folder to a new repo's
 root, move `.github/workflows/oss-crs-image.yaml` alongside it, and change the
@@ -33,13 +34,29 @@ The runner image is published to GHCR as `oss-crs-runner` by
 | Input | Default | Notes |
 | --- | --- | --- |
 | `harness` | — (required) | Harness name (from the project's `build.sh`). |
-| `proj-path` | `.oss-fuzz` | `--fuzz-proj-path` (the OSS-Fuzz project dir). |
+| `crs` | `crs-libfuzzer` | Engine; selects the bundled compose. Also `crs-bug-finding-claude-code`. |
+| `proj-path` | `oss-fuzz` | `--fuzz-proj-path` (the OSS-Fuzz project dir). |
 | `image` | `ghcr.io/<owner>/oss-crs-runner:latest` | Runner image. |
-| `compose-file` | bundled compose | Override to resize/retarget. |
-| `timeout` | `300` | Fuzzing budget (seconds) for the run phase. |
-| `fail-on-crash` | `true` | `true` fails the job on a PoV (presubmit); `false` reports only (periodic). |
+| `compose-file` | bundled `<crs>.compose.yaml` | Override to resize/retarget. |
+| `timeout` | `300` | Run budget (seconds). |
+| `fail-on-crash` | `true` | `true` fails the job on a PoV (presubmit); `false` reports only. |
+| `claude-code-oauth-token` | `""` | For the Claude Code CRS; from `claude setup-token`. Forwarded to the container. |
+| `anthropic-api-key` | `""` | Alternative LLM auth via the LiteLLM proxy. |
 
 Outputs: `crashed` (`true`/`false`) and `artifacts-dir` (collected PoVs + logs).
+
+## Bug-finding with Claude Code (LLM CRS)
+
+`crs: crs-bug-finding-claude-code` runs an LLM agent instead of a fuzzer. It
+still builds the same `oss-fuzz` target + harness (ASAN snapshot for PoV
+verification) but Claude Code drives the analysis. Because it needs a secret it
+is **manual-dispatch only** (`.github/workflows/oss-crs-claude-code.yaml`) and
+**must never run on fork PRs**. It skips LiteLLM/Postgres (OAuth mode) and is
+bounded by `timeout` + the compose's `llm_budget` / `AGENT_TIMEOUT`.
+
+Setup: `claude setup-token` → store as the `CLAUDE_CODE_OAUTH_TOKEN` repo secret →
+run the **oss-crs-claude-code** workflow (defaults: harness `parse_class`, Sonnet
+4.6, ~25 min). Locally: `CRS=crs-bug-finding-claude-code CLAUDE_CODE_OAUTH_TOKEN=… local-run.sh parse_class 600`.
 
 ## OSS CRS architecture coverage
 
@@ -77,10 +94,10 @@ for the pure-fuzzer (`crs-libfuzzer`, `llm_config: null`) path:
 ampel supplies the project-specific pieces:
 
 - `test/fuzz/` — native Go fuzz harnesses (`FuzzParse*`), also run under `go test`.
-- `.oss-fuzz/` — the in-repo OSS-Fuzz project (`project.yaml`, `Dockerfile`,
+- `oss-fuzz/` — the in-repo OSS-Fuzz project (`project.yaml`, `Dockerfile`,
   `build.sh`) that compiles those harnesses.
 
-Harness names come from `.oss-fuzz/build.sh`:
+Harness names come from `oss-fuzz/build.sh`:
 
 | `--target-harness` | Go fuzz func | Exercises |
 | --- | --- | --- |

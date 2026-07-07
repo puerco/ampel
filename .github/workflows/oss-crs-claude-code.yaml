@@ -1,0 +1,79 @@
+# SPDX-FileCopyrightText: Copyright 2026 Carabiner Systems, Inc
+# SPDX-License-Identifier: Apache-2.0
+#
+# OSS CRS bug-finding with Claude Code (crs-bug-finding-claude-code).
+#
+# This CRS is LLM-driven and needs a secret (CLAUDE_CODE_OAUTH_TOKEN), so it is
+# manual-dispatch only and runs in a trusted context — NEVER on fork PRs. It
+# costs Claude subscription quota; the run is bounded by `timeout` and the
+# compose's llm_budget / AGENT_TIMEOUT.
+#
+# Setup once:
+#   1. Locally: `claude setup-token`
+#   2. Repo → Settings → Secrets and variables → Actions → new secret
+#      CLAUDE_CODE_OAUTH_TOKEN = <the token>
+#   3. Publish the runner image (oss-crs-image workflow) if you haven't.
+name: oss-crs-claude-code
+
+on:
+  workflow_dispatch:
+    inputs:
+      harness:
+        description: "Harness to target"
+        required: false
+        default: "parse_class"
+      timeout:
+        description: "Run budget in seconds (outer cap)"
+        required: false
+        default: "1500"
+
+permissions: {}
+
+concurrency:
+  group: oss-crs-claude-code
+  cancel-in-progress: false
+
+jobs:
+  bug-find:
+    name: "Claude Code bug-finding (${{ github.event.inputs.harness }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: read # pull the oss-crs-runner image from GHCR
+    steps:
+      - name: Require OAuth secret
+        env:
+          TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [[ -z "$TOKEN" ]]; then
+            echo "::error::CLAUDE_CODE_OAUTH_TOKEN secret is not set. Run 'claude setup-token' and add it as a repo secret."
+            exit 1
+          fi
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - id: scan
+        uses: ./.github/actions/oss-crs-scan
+        with:
+          crs: crs-bug-finding-claude-code
+          harness: ${{ github.event.inputs.harness }}
+          proj-path: oss-fuzz
+          timeout: ${{ github.event.inputs.timeout }}
+          fail-on-crash: "false"
+          claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+      - name: Upload findings
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: oss-crs-claude-code-${{ github.event.inputs.harness }}
+          path: ${{ steps.scan.outputs.artifacts-dir }}
+          if-no-files-found: ignore
