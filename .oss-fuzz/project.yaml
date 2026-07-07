@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Copyright 2026 Carabiner Systems, Inc
+# SPDX-License-Identifier: Apache-2.0
+#
+# In-repo OSS-Fuzz project definition for ampel. This is not (yet) an upstream
+# google/oss-fuzz project; it exists so OSS CRS can target ampel's fuzz harnesses
+# directly via `--fuzz-proj-path .oss-fuzz`. See .github/actions/oss-crs-scan.
+homepage: "https://github.com/carabiner-dev/ampel"
+main_repo: "https://github.com/carabiner-dev/ampel"
+language: go
+primary_contact: "info@carabiner.dev"
+base_os_version: ubuntu-24-04
+fuzzing_engines:
+  - libfuzzer
+sanitizers:
+  - address
