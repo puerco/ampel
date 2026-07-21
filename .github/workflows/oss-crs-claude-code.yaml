@@ -56,23 +56,11 @@ jobs:
         with:
           persist-credentials: false
 
-      # TEMP (rough-edge testing): the action lives in a PRIVATE personal repo
-      # (puerco/oss-crs-actions), which `uses: owner/repo@ref` can't resolve across
-      # two personal repos. Check it out with a PAT and run it by local path. Once
-      # ossf/oss-crs-actions is public, delete this step and use
-      # `uses: ossf/oss-crs-actions@<sha>` directly (with the default image).
-      - name: Fetch the OSS-CRS action
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          repository: puerco/oss-crs-actions
-          ref: main
-          token: ${{ secrets.OSS_CRS_ACTIONS_TOKEN }}
-          path: .oss-crs-action
-          persist-credentials: false
-
       - id: scan
-        # TEMP: local path to the checked-out action + its public runner image.
-        uses: ./.oss-crs-action
+        # TEMP (rough-edge testing): a public STANDALONE (non-fork) dev repo +
+        # the public puerco runner image. Switch to ossf/oss-crs-actions@<sha>
+        # (default image) once that repo + its GHCR package are public.
+        uses: puerco/oss-crs-temp@main
         with:
           crs: crs-bug-finding-claude-code
           harness: ${{ github.event.inputs.harness }}
