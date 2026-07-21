@@ -57,14 +57,17 @@ jobs:
           persist-credentials: false
 
       - id: scan
-        # Pinned to @main while iterating; switch to a commit SHA for production.
-        uses: ossf/oss-crs-actions@main
+        # TEMP (rough-edge testing): point at the public puerco fork + its public
+        # runner image. Switch back to ossf/oss-crs-actions@<sha> (default image)
+        # once the ossf repo + ghcr.io/ossf/oss-crs-runner package are public.
+        uses: puerco/oss-crs-actions@main
         with:
           crs: crs-bug-finding-claude-code
           harness: ${{ github.event.inputs.harness }}
           proj-path: oss-fuzz
           timeout: ${{ github.event.inputs.timeout }}
           fail-on-crash: "false"
+          image: ghcr.io/puerco/oss-crs-runner:latest
           env: |
             CLAUDE_CODE_OAUTH_TOKEN=${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
