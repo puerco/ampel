@@ -60,7 +60,7 @@ jobs:
         # TEMP (rough-edge testing): a public STANDALONE (non-fork) dev repo +
         # the public puerco runner image. Switch to ossf/oss-crs-actions@<sha>
         # (default image) once that repo + its GHCR package are public.
-        uses: puerco/oss-crs-temp@main
+        uses: puerco/oss-crs-action-dev@main
         with:
           crs: crs-bug-finding-claude-code
           harness: ${{ github.event.inputs.harness }}
