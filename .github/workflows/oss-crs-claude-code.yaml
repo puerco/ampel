@@ -1,7 +1,10 @@
 # SPDX-FileCopyrightText: Copyright 2026 Carabiner Systems, Inc
 # SPDX-License-Identifier: Apache-2.0
 #
-# OSS CRS bug-finding with Claude Code (crs-bug-finding-claude-code).
+# OSS CRS bug-finding with Claude Code (crs-bug-finding-claude-code), via the
+# reusable ossf/oss-crs-actions action. ampel supplies only the target: the
+# in-repo OSS-Fuzz project (oss-fuzz/) and harnesses (test/fuzz/). The oss-crs
+# CLI, runner image, and CRS compose all come from the action.
 #
 # This CRS is LLM-driven and needs a secret (CLAUDE_CODE_OAUTH_TOKEN), so it is
 # manual-dispatch only and runs in a trusted context — NEVER on fork PRs. It
@@ -12,7 +15,6 @@
 #   1. Locally: `claude setup-token`
 #   2. Repo → Settings → Secrets and variables → Actions → new secret
 #      CLAUDE_CODE_OAUTH_TOKEN = <the token>
-#   3. Publish the runner image (oss-crs-image workflow) if you haven't.
 name: oss-crs-claude-code
 
 on:
@@ -39,8 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
-      contents: read
-      packages: read # pull the oss-crs-runner image from GHCR
+      contents: read # the action pulls a PUBLIC runner image; no packages: read needed
     steps:
       - name: Require OAuth secret
         env:
@@ -55,20 +56,17 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Log in to GHCR
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
       - id: scan
-        uses: ./.github/actions/oss-crs-scan
+        # Pinned to @main while iterating; switch to a commit SHA for production.
+        uses: ossf/oss-crs-actions@main
         with:
           crs: crs-bug-finding-claude-code
           harness: ${{ github.event.inputs.harness }}
           proj-path: oss-fuzz
           timeout: ${{ github.event.inputs.timeout }}
           fail-on-crash: "false"
-          claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          env: |
+            CLAUDE_CODE_OAUTH_TOKEN=${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
       - name: Upload findings
         if: always() && steps.scan.outputs.artifacts-dir != ''
